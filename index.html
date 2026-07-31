@@ -649,13 +649,16 @@ document.getElementById('statCardDone').addEventListener('click', () => scrollTo
 document.getElementById('statCardSuccess').addEventListener('click', () => scrollToCard('successCard'));
 document.getElementById('statCardRate').addEventListener('click', () => scrollToCard('successCard'));
 
-function buildPaidIndex(records) {
+function buildPaidIndex(records, selectedDate) {
   const idx = {};
   if (!records) return idx;
   records
-    // 결제금액 0원인 건(예: 신용등급 즉시조회 무료 상품)은 실제 재발급 결제가 아니라서 제외
+    // 결제금액 0원인 건(예: 신용등급 즉시조회 무료 상품)은 실제 재발급 결제가 아니라서 제외.
+    // 또한 재발급 대상자는 원래 예전(보통 1년 전)에 결제한 이력이 항상 있어서 그게
+    // "이미 발급됨"으로 잘못 잡히지 않도록, TM 진행일자 당일 결제 건만 인정한다.
     .filter(o => (o['주문 상태'] || '') === '주문완료' && (o['결제 상태'] || '') === '결제완료' &&
-      Number(String(o['결제/주문 금액'] || '0').replace(/[^\d.-]/g, '')) > 0)
+      Number(String(o['결제/주문 금액'] || '0').replace(/[^\d.-]/g, '')) > 0 &&
+      (!selectedDate || String(o['주문일시'] || '').slice(0, 10) === selectedDate))
     .forEach(o => {
       const key = String(o['사업자번호'] || '').trim();
       if (!key) return;
@@ -680,8 +683,8 @@ document.getElementById('matchBtn').addEventListener('click', () => {
   const primaryRecords = orderRecordsPM || orderRecordsAM;
   const primaryLabel = orderRecordsPM ? '2차' : '1차';
   const compareMode = !!(orderRecordsAM && orderRecordsPM);
-  const pmIndex = buildPaidIndex(primaryRecords);
-  const amIndex = compareMode ? buildPaidIndex(orderRecordsAM) : null;
+  const pmIndex = buildPaidIndex(primaryRecords, selectedDate);
+  const amIndex = compareMode ? buildPaidIndex(orderRecordsAM, selectedDate) : null;
 
   // Show 1차/2차 status side by side in the "전체" list whenever a 1차 file
   // is attached, so mismatches (e.g. a business that looks issued in one file
