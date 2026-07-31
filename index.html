@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>TM 콜 스크리너</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.44.0/tabler-icons.min.css">
+<style>
+  :root {
+    color-scheme: light;
+    --indigo: #185FA5;
+    --indigo-dark: #0C447C;
+    --indigo-light: #E6F1FB;
+    --green: #16a34a;
+    --green-light: #ecfdf3;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --ink: #1f2430;
+    --sub: #6b7280;
+    --line: #e8eaed;
+    --butter-bg: #DCEEFB;
+    --butter-ink: #0C447C;
+    --butter-sub: #185FA5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 48px; background: #f5f6fa; color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Malgun Gothic", sans-serif;
+    letter-spacing: -0.1px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+  .hero {
+    background: var(--butter-bg);
+    color: var(--butter-ink); padding: 36px 0 46px; margin-bottom: -26px;
+    border-bottom: 1px solid #cfe4f5;
+  }
+  .hero-inner { max-width: 1120px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; gap: 16px; }
+  .icon-badge { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+  .icon-badge .pulse {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: var(--indigo); opacity: .35;
+    animation: ping 2.2s ease-out infinite;
+  }
+  .icon-badge .core {
+    position: absolute; inset: 0; border-radius: 50%; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .icon-badge .core i { font-size: 20px; color: var(--indigo); }
+  @keyframes ping {
+    0% { transform: scale(1); opacity: .35; }
+    70% { transform: scale(1.7); opacity: 0; }
+    100% { transform: scale(1.7); opacity: 0; }
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hero h1 { font-size: 24px; margin: 0 0 3px; font-weight: 800; letter-spacing: -0.3px; color: var(--butter-ink); }
+  .hero .tag { font-size: 13px; color: var(--butter-sub); }
+
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 16px;
+    padding: 20px 22px; margin-bottom: 18px;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 20px rgba(16,24,40,.04);
+    position: relative; z-index: 1;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .field { min-width: 220px; flex: 1; }
+  label { display: block; font-size: 12px; font-weight: 700; color: var(--sub); margin-bottom: 6px; letter-spacing: .1px; }
+  label.sr-label { visibility: hidden; }
+  .field button { width: 100%; }
+  input[type="date"], input[type="file"], input[type="text"] {
+    border: 1px solid #d8dbe0; border-radius: 10px; padding: 9px 11px; font-size: 13px;
+    background: #fbfbfd; color: var(--ink); width: 100%; transition: border-color .15s, box-shadow .15s;
+  }
+  input[type="date"]:focus, input[type="file"]:focus, input[type="text"]:focus {
+    outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px var(--indigo-light); background: #fff;
+  }
+  button {
+    border: none; border-radius: 10px; padding: 10px 20px; font-size: 13.5px; font-weight: 700;
+    background: var(--indigo); color: #fff; cursor: pointer; transition: background .15s, transform .05s;
+    white-space: nowrap;
+  }
+  button:disabled { background: #c2c6d1; cursor: not-allowed; }
+  button:hover:not(:disabled) { background: var(--indigo-dark); }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button.ghost { background: #fff; color: var(--indigo); border: 1px solid #d8dbe0; font-weight: 600; }
+  button.ghost:hover:not(:disabled) { background: var(--indigo-light); }
+
+  .status { font-size: 13px; margin-top: 12px; color: var(--sub); white-space: pre-line; display: flex; align-items: center; gap: 8px; }
+  .status.err { color: var(--red); }
+  .status.ok { color: var(--green); }
+  .dot-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--indigo-light); border-top-color: var(--indigo); animation: spin .7s linear infinite; flex-shrink: 0; }
+
+  details.settings { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  details.settings summary {
+    cursor: pointer; font-weight: 700; color: var(--indigo); font-size: 12.5px;
+    list-style: none; display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid #d8dbe0; border-radius: 10px; padding: 8px 14px;
+    background: #fff; transition: background .15s, border-color .15s;
+  }
+  details.settings summary:hover { background: var(--indigo-light); border-color: var(--indigo); }
+  details.settings summary::-webkit-details-marker { display: none; }
+  details.settings summary:before { content: "⚙"; }
+  .settings-body { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+  .hint { font-size: 12px; color: var(--sub); line-height: 1.6; margin-top: 6px; }
+
+  .summary { display: flex; gap: 14px; flex-wrap: wrap; }
+  .stat {
+    flex: 1; min-width: 160px; border-radius: 14px; padding: 16px 18px;
+    background: #f7f8fb; border: 1px solid var(--line);
+    cursor: pointer; transition: transform .1s, box-shadow .15s;
+  }
+  .stat:hover { box-shadow: 0 2px 10px rgba(16,24,40,.08); transform: translateY(-1px); }
+  .stat .n { font-size: 26px; font-weight: 800; line-height: 1.1; }
+  .stat .l { font-size: 12px; color: var(--sub); margin-top: 4px; font-weight: 600; }
+  .stat.call { background: var(--red-light); border-color: #fde0e0; }
+  .stat.call .n { color: var(--red); }
+  .stat.done { background: var(--green-light); border-color: #d6f5e2; }
+  .stat.done .n { color: var(--green); }
+  .stat.success { background: #fff8e6; border-color: #f7dfa0; }
+  .stat.success .n { color: #a35a00; }
+  .stat.success .l { color: #a35a00; }
+  .pill.success { background: #fff8e6; color: #a35a00; }
+  .stat.rate { background: #f3f0ff; border-color: #ddd3fb; }
+  .stat.rate .n { color: #6d28d9; }
+  .stat.rate .l { color: #6d28d9; }
+
+  .tag-missing { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#fee2e2; color:#991b1b; }
+  .tag-issued { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#dcfce7; color:#166534; }
+  #allTable tbody tr.row-missing { background: #fffafa; }
+  #allTable tbody tr.row-issued { background: #fafffb; }
+
+  .section-title {
+    font-size: 15.5px; font-weight: 800; margin: 0 0 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .section-title .lbl { display: flex; align-items: center; gap: 8px; }
+  .pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .pill.call { background: var(--red-light); color: var(--red); }
+  .pill.done { background: var(--green-light); color: var(--green); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  th, td {
+    border-bottom: 1px solid #f0f1f4; padding: 6px 7px; text-align: left;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0;
+  }
+  th { background: #fafafc; font-size: 11.5px; color: var(--sub); font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+  tbody tr { transition: background .1s; }
+  tbody tr:hover { background: #f7f8fd; }
+  .tbl-wrap { border: 1px solid #f0f1f4; border-radius: 10px; }
+  .empty { padding: 26px; text-align: center; color: #9ca3af; font-size: 13px; }
+  .tag-consent { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#dcfce7; color:#166534; }
+  .tag-disconsent { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#fee2e2; color:#991b1b; }
+</style>
+</head>
+<body>
+
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="icon-badge">
+        <div class="pulse"></div>
+        <div class="core"><i class="ti ti-phone-check" aria-hidden="true"></i></div>
+      </div>
+      <div>
+        <h1>TM 콜 스크리너</h1>
+        <div class="tag">TM 대상자와 발급 여부를 자동으로 매칭해드려요 · 스크리닝 · 성과측정 겸용</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label>1차 주문내역 (TM 진행 전)</label>
+          <input type="file" id="orderFileAM" accept=".xlsx,.xls,.csv">
+        </div>
+        <div class="field">
+          <label>2차 주문내역 (TM 진행 후)</label>
+          <input type="file" id="orderFilePM" accept=".xlsx,.xls,.csv">
+        </div>
+        <div class="field" style="max-width:170px;">
+          <label>TM 진행일자</label>
+          <input type="date" id="dateInput">
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <div class="field" style="max-width:150px;">
+          <button id="matchBtn">매칭하기</button>
+        </div>
+        <div class="field" style="max-width:150px;">
+          <button class="ghost" id="refreshBtn" type="button">TM목록 새로고침</button>
+        </div>
+      </div>
+      <div class="hint">1차·2차 중 하나만 첨부해도 그 파일 기준으로 발급 여부를 바로 조회할 수 있어요. 둘 다 첨부하면, 1차엔 미발급이었다가 2차에 발급으로 바뀐 건만 성공 건으로 따로 모아 보여드려요.</div>
+
+      <div id="statusMsg" class="status"><div class="dot-spin"></div> TM 대상자 명단을 불러오는 중...</div>
+
+      <details class="settings">
+        <summary>연결된 구글 시트 설정</summary>
+        <div class="settings-body">
+          <div class="row">
+            <div class="field">
+              <label>스프레드시트 URL 또는 ID</label>
+              <input type="text" id="sheetIdInput" placeholder="https://docs.google.com/spreadsheets/d/....">
+            </div>
+            <div class="field">
+              <label>탭 이름 (콤마로 구분)</label>
+              <input type="text" id="tabsInput" placeholder="마케팅O,마케팅X,무제한마케팅O,무제한마케팅X">
+            </div>
+            <div class="field" style="max-width:110px;">
+              <label class="sr-label">&nbsp;</label>
+              <button class="ghost" id="saveSettingsBtn" type="button">저장</button>
+            </div>
+          </div>
+          <div class="hint">
+            TM 대상자가 새로운 스프레드시트로 바뀌면 여기에 새 주소만 붙여넣으면 돼요 — 파일을 다시 만들 필요 없어요.<br>
+            단, 이 시트는 "공유 설정 → 일반 액세스 → 링크가 있는 모든 사용자(뷰어)"로 되어 있어야 외부에서 자동으로 불러올 수 있어요.
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card" id="summaryCard" style="display:none;">
+      <div class="summary">
+        <div class="stat" id="statCardTotal"><div class="n" id="statTotal">0</div><div class="l">선택 날짜 TM 대상자</div></div>
+        <div class="stat call" id="statCardCall"><div class="n" id="statCall">0</div><div class="l">미발급</div></div>
+        <div class="stat done" id="statCardDone"><div class="n" id="statDone">0</div><div class="l">발급완료</div></div>
+        <div class="stat success" id="statCardSuccess" style="display:none;"><div class="n" id="statSuccess">0</div><div class="l"><i class="ti ti-trophy" aria-hidden="true"></i> <span id="statSuccessLabel">성공 건</span></div></div>
+        <div class="stat rate" id="statCardRate" style="display:none;"><div class="n" id="statRate">0%</div><div class="l">성공률 (1차 미발급 대비)</div></div>
+      </div>
+    </div>
+
+    <div class="card" id="successCard" style="display:none; border: 2px solid #f0b429;">
+      <div class="section-title">
+        <div class="lbl"><span id="successSectionLabel">성공 건</span> <span class="pill success">1차 → 2차 신규 발급</span></div>
+        <input type="text" id="successSearch" placeholder="검색 (상호명, 대표자명, 사업자번호...)" style="max-width:260px;">
+      </div>
+      <div class="tbl-wrap"><table id="successTable"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card" id="allCard" style="display:none;">
+      <div class="section-title">
+        <div class="lbl">선택 날짜 TM 대상자 전체</div>
+        <input type="text" id="allSearch" placeholder="검색 (상호명, 대표자명, 사업자번호...)" style="max-width:260px;">
+      </div>
+      <div class="tbl-wrap"><table id="allTable"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card" id="callCard" style="display:none;">
+      <div class="section-title">
+        <div class="lbl">미발급 대상 <span class="pill call">미발급</span></div>
+        <input type="text" id="callSearch" placeholder="검색 (상호명, 대표자명, 사업자번호...)" style="max-width:260px;">
+      </div>
+      <div class="tbl-wrap"><table id="callTable"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+    <div class="card" id="doneCard" style="display:none;">
+      <div class="section-title">
+        <div class="lbl">발급완료 <span class="pill done">발급완료</span></div>
+        <input type="text" id="doneSearch" placeholder="검색 (상호명, 대표자명, 사업자번호...)" style="max-width:260px;">
+      </div>
+      <div class="tbl-wrap"><table id="doneTable"><thead></thead><tbody></tbody></table></div>
+    </div>
+
+  </div>
+
+<script>
+const DEFAULT_SHEET_ID = '1ChYQRAokNC9xnCug2OaPfB_PTXRnCT5gURrbclv4jcs';
+const DEFAULT_TABS = ['마케팅O', '마케팅X', '무제한마케팅O', '무제한마케팅X'];
+const SETTINGS_KEY = 'call_radar_settings_v1';
+
+let tmRecords = null;
+let orderRecordsAM = null;
+let orderRecordsPM = null;
+let callRowsData = [];
+let doneRowsData = [];
+let allRowsData = [];
+let successRowsData = [];
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+document.getElementById('dateInput').value = todayISO();
+
+function setStatus(msg, cls, spinning) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status' + (cls ? (' ' + cls) : '');
+  el.innerHTML = (spinning ? '<div class="dot-spin"></div>' : '') + msg;
+}
+
+function extractSheetId(input) {
+  input = (input || '').trim();
+  const m = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return m ? m[1] : input;
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.sheetId && Array.isArray(s.tabs)) return s;
+    }
+  } catch (e) {}
+  return { sheetId: DEFAULT_SHEET_ID, tabs: DEFAULT_TABS };
+}
+function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+
+let currentSettings = loadSettings();
+document.getElementById('sheetIdInput').value = currentSettings.sheetId;
+document.getElementById('tabsInput').value = currentSettings.tabs.join(',');
+
+document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+  const sheetId = extractSheetId(document.getElementById('sheetIdInput').value);
+  const tabs = document.getElementById('tabsInput').value.split(',').map(t => t.trim()).filter(Boolean);
+  if (!sheetId || !tabs.length) { setStatus('스프레드시트 주소와 탭 이름을 모두 입력해주세요.', 'err'); return; }
+  currentSettings = { sheetId, tabs };
+  saveSettings(currentSettings);
+  loadTM();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', loadTM);
+
+// ---- shared row/record helpers ----
+function rowsToRecords(rows, requiredCols) {
+  let headerIdx = -1, headers = null;
+  for (let i = 0; i < rows.length; i++) {
+    const cellVals = rows[i].map(c => String(c).trim());
+    if (requiredCols.every(rc => cellVals.includes(rc))) { headerIdx = i; headers = cellVals; break; }
+  }
+  if (headerIdx === -1) return [];
+  const out = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => String(c).trim() === '')) continue;
+    const rec = {};
+    headers.forEach((h, idx) => { rec[h] = String(r[idx] !== undefined ? r[idx] : '').trim(); });
+    out.push(rec);
+  }
+  return out;
+}
+
+function parseCSVToRows(text) {
+  text = text.replace(/^﻿/, '');
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = ''; rows.push(row); row = [];
+      } else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+function extractISODate(korDateStr) {
+  if (!korDateStr) return null;
+  const m = korDateStr.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!m) return null;
+  return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+}
+
+function formatMDDay(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return iso;
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return (d.getMonth() + 1) + '/' + d.getDate() + '(' + days[d.getDay()] + ')';
+}
+
+function formatDateTime(v) {
+  const s = String(v || '');
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return s;
+  return m[1].slice(2) + '/' + m[2] + '/' + m[3] + ' ' + m[4] + ':' + m[5];
+}
+
+function formatBizNo(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  if (d.length !== 10) return v || '';
+  return d.slice(0, 3) + '-' + d.slice(3, 5) + '-' + d.slice(5);
+}
+
+function formatPhone(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  if (d.length === 11) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+  if (d.length === 10) return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+  return v || '';
+}
+
+// Loaded via a <script src> tag (JSONP), not fetch()/XHR — this is deliberate.
+// Double-clicked HTML files open as file:// pages, and Chrome/Edge refuse
+// fetch()/XHR calls to remote https URLs from a file:// origin outright
+// (regardless of the target's CORS headers). A <script src> load is not
+// subject to that restriction, so this is the reliable way to pull live
+// Google Sheet data into a standalone local HTML file.
+let __jsonpSeq = 0;
+function fetchTabJSONP(sheetId, tabName) {
+  return new Promise((resolve, reject) => {
+    const cbName = '__tmCb_' + (__jsonpSeq++) + '_' + Date.now();
+    let done = false;
+    const cleanup = () => { delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); };
+    window[cbName] = (resp) => {
+      if (done) return;
+      done = true;
+      cleanup();
+      if (!resp || resp.status === 'error') {
+        const msg = (resp && resp.errors && resp.errors[0] && resp.errors[0].detailed_message) || '알 수 없는 오류';
+        reject(new Error('"' + tabName + '" 탭 오류: ' + msg));
+        return;
+      }
+      resolve(resp.table);
+    };
+    const script = document.createElement('script');
+    script.src = 'https://docs.google.com/spreadsheets/d/' + sheetId + '/gviz/tq' +
+      '?sheet=' + encodeURIComponent(tabName) +
+      '&headers=0' +
+      '&tqx=out:json;responseHandler:' + cbName +
+      '&_=' + Date.now();
+    script.onerror = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('"' + tabName + '" 탭을 불러오지 못했어요 (네트워크/권한 오류)'));
+    };
+    document.head.appendChild(script);
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('"' + tabName + '" 응답이 시간 내에 오지 않았어요'));
+    }, 12000);
+  });
+}
+
+function gvizTableToRows(table) {
+  if (!table || !table.rows) return [];
+  return table.rows.map(r => (r.c || []).map(cell => {
+    if (!cell) return '';
+    if (cell.f !== undefined && cell.f !== null) return String(cell.f);
+    if (cell.v !== undefined && cell.v !== null) return String(cell.v);
+    return '';
+  }));
+}
+
+// The TM sheet's real header sits in row 2 (row 1 is a blank spacer row), and
+// Google's gviz JSON endpoint auto-detects column types per column — since 사업자번호
+// is mostly numeric, the literal header text "사업자번호" gets silently dropped to null
+// when it lands in that column, breaking any header-text-based detection. So instead of
+// hunting for a header row, we map columns A–L by fixed position (verified against the
+// sheet: 유저아이디,대표자명,상호명,사업자번호,연락처,상품명,주문번호,주문일,만료일,TM진행일자,동의여부,발급)
+// and simply keep rows whose 사업자번호 looks like a real 10-digit business number —
+// that alone naturally filters out the header/blank rows without any text matching.
+const TM_COLUMNS = ['유저아이디', '대표자명', '상호명', '사업자번호', '연락처', '상품명', '주문번호', '주문일', '만료일', 'TM진행일자', '동의여부', '발급'];
+
+function gvizRowsToTMRecords(rows) {
+  return rows.map(r => {
+    const rec = {};
+    TM_COLUMNS.forEach((h, idx) => { rec[h] = String(r[idx] !== undefined ? r[idx] : '').trim(); });
+    return rec;
+  }).filter(rec => /^\d{9,11}$/.test(rec['사업자번호']));
+}
+
+async function loadTM() {
+  setStatus('TM 대상자 명단을 불러오는 중... (' + currentSettings.tabs.join(', ') + ')', '', true);
+  tmRecords = null;
+  try {
+    const all = [];
+    const tabNotes = [];
+    for (const tab of currentSettings.tabs) {
+      const table = await fetchTabJSONP(currentSettings.sheetId, tab);
+      const rows = gvizTableToRows(table);
+      const recs = gvizRowsToTMRecords(rows);
+      recs.forEach(rec => { rec['_시트'] = tab; });
+      tabNotes.push(tab + ':' + recs.length);
+      all.push(...recs);
+    }
+    console.log('TM tabs loaded ->', tabNotes.join(', '));
+    tmRecords = all;
+    if (!tmRecords.length) {
+      setStatus('시트는 불러왔지만 대상자가 0건이에요 (' + tabNotes.join(', ') + '). 탭 이름/컬럼 구조를 확인해주세요.', 'err');
+      return;
+    }
+    setStatus('TM 대상자 ' + tmRecords.length + '건 불러왔어요. 주문내역 파일을 첨부하고 매칭하기를 눌러주세요.', 'ok');
+  } catch (err) {
+    console.error('loadTM failed', err);
+    setStatus('구글 시트를 불러오지 못했어요 (' + (err && err.message ? err.message : '') + '). 시트 공유 설정과 탭 이름을 확인해주세요.', 'err');
+  }
+}
+
+function readWorkbook(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); }
+      catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function extractRecordsFromWorkbook(wb, requiredCols) {
+  const out = [];
+  wb.SheetNames.forEach((sheetName) => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '', raw: false });
+    out.push(...rowsToRecords(rows, requiredCols));
+  });
+  return out;
+}
+
+document.getElementById('orderFileAM').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    setStatus('1차 주문내역 읽는 중...', '', true);
+    const wb = await readWorkbook(file);
+    orderRecordsAM = extractRecordsFromWorkbook(wb, ['사업자번호', '주문 상태']);
+    setStatus('1차 주문내역 ' + orderRecordsAM.length + '건 인식됨.', 'ok');
+  } catch (err) {
+    console.error(err);
+    setStatus('1차 주문내역 파일을 읽는 중 문제가 생겼어요. 파일 형식을 확인해주세요.', 'err');
+  }
+});
+
+document.getElementById('orderFilePM').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    setStatus('2차 주문내역 읽는 중...', '', true);
+    const wb = await readWorkbook(file);
+    orderRecordsPM = extractRecordsFromWorkbook(wb, ['사업자번호', '주문 상태']);
+    setStatus('2차 주문내역 ' + orderRecordsPM.length + '건 인식됨. 날짜 확인 후 "매칭하기"를 눌러주세요.', 'ok');
+  } catch (err) {
+    console.error(err);
+    setStatus('2차 주문내역 파일을 읽는 중 문제가 생겼어요. 파일 형식을 확인해주세요.', 'err');
+  }
+});
+
+function fmtTag(v) {
+  if (v === 'CONSENT') return '<span class="tag-consent">CONSENT</span>';
+  if (v === 'DISCONSENT') return '<span class="tag-disconsent">DISCONSENT</span>';
+  if (v === '미발급') return '<span class="tag-missing">미발급</span>';
+  if (v === '발급완료') return '<span class="tag-issued">발급완료</span>';
+  return v || '';
+}
+
+// 글자수가 대체로 고정된 컬럼은 좁게, 상품명처럼 긴 텍스트가 들어가는 컬럼은 넓게.
+// 목록에 없는 컬럼은 기본 가중치(10)를 씀.
+const COL_WEIGHTS = {
+  '사업자번호': 9, '대표자명': 7, '연락처': 8, '만료일': 6, '동의여부': 7,
+  '상태': 6, '1차': 5, '2차': 5, '시트': 8, '결제금액': 6, '주문일시': 7,
+  '상호명': 13, '상품명': 22, '주문 상품명': 22
+};
+
+// 시트(탭)별 고정 파스텔 색 지정 — 미발급(빨강)/발급완료(초록) 태그와 겹치지 않는 톤으로만 구성.
+// 지정되지 않은 새 탭 이름은 아래 팔레트에서 해시로 자동 배정됨.
+const SHEET_FIXED_COLORS = {
+  '마케팅O': { bg: '#FFF6D6', fg: '#7A5C00' },
+  '마케팅X': { bg: '#F1ECFE', fg: '#5B4499' },
+  '무제한마케팅O': { bg: '#FDEBDC', fg: '#9A5219' },
+  '무제한마케팅X': { bg: '#E4F3FC', fg: '#276E96' }
+};
+const SHEET_COLOR_PALETTE = [
+  { bg: '#FFF6D6', fg: '#7A5C00' }, { bg: '#F1ECFE', fg: '#5B4499' },
+  { bg: '#FDEBDC', fg: '#9A5219' }, { bg: '#E4F3FC', fg: '#276E96' },
+  { bg: '#F1EFE8', fg: '#444441' }, { bg: '#E1F5EE', fg: '#085041' }
+];
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function sheetBadge(name) {
+  if (!name) return '';
+  const c = SHEET_FIXED_COLORS[name] || SHEET_COLOR_PALETTE[hashStr(name) % SHEET_COLOR_PALETTE.length];
+  return '<span style="display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;background:' +
+    c.bg + ';color:' + c.fg + ';white-space:nowrap;">' + name + '</span>';
+}
+
+function renderTable(tableId, columns, rows, tagCols, rowClassCol, sheetCol) {
+  const tagColSet = Array.isArray(tagCols) ? tagCols : (tagCols === undefined ? [] : [tagCols]);
+  const table = document.getElementById(tableId);
+  const thead = table.querySelector('thead');
+  const tbody = table.querySelector('tbody');
+
+  let colgroup = table.querySelector('colgroup');
+  if (colgroup) colgroup.remove();
+  colgroup = document.createElement('colgroup');
+  const weights = columns.map(c => COL_WEIGHTS[c] || 10);
+  const total = weights.reduce((a, b) => a + b, 0);
+  colgroup.innerHTML = weights.map(w => '<col style="width:' + (w / total * 100).toFixed(2) + '%">').join('');
+  table.insertBefore(colgroup, table.firstChild);
+
+  thead.innerHTML = '<tr>' + columns.map(c => '<th>' + c + '</th>').join('') + '</tr>';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="' + columns.length + '" class="empty">해당하는 데이터가 없어요</td></tr>';
+    return;
+  }
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  tbody.innerHTML = rows.map(r => {
+    const cls = rowClassCol !== undefined ? (r[rowClassCol] === '발급완료' ? 'row-issued' : 'row-missing') : '';
+    return '<tr class="' + cls + '">' + r.map((c, i) =>
+      i === sheetCol
+        ? '<td>' + sheetBadge(c) + '</td>'
+        : tagColSet.includes(i)
+          ? '<td>' + fmtTag(c) + '</td>'
+          : '<td title="' + esc(c) + '">' + (c === '' ? '' : esc(c)) + '</td>'
+    ).join('') + '</tr>';
+  }).join('');
+}
+
+function applySearch(inputId, rows, columns, tableId, tagCols, rowClassCol, sheetCol) {
+  const q = document.getElementById(inputId).value.trim().toLowerCase();
+  const filtered = q ? rows.filter(r => r.some(c => String(c).toLowerCase().includes(q))) : rows;
+  renderTable(tableId, columns, filtered, tagCols, rowClassCol, sheetCol);
+}
+
+const callCols = ['시트', '사업자번호', '상호명', '대표자명', '연락처', '상품명', '만료일'];
+const doneCols = ['시트', '사업자번호', '상호명', '대표자명', '주문 상품명', '결제금액', '주문일시'];
+let allCols = ['시트', '사업자번호', '상호명', '대표자명', '연락처', '상품명', '상태'];
+let allTagCols = [6];
+let allRowClassCol = 6;
+const successCols = ['시트', '사업자번호', '상호명', '대표자명', '주문 상품명', '결제금액', '주문일시'];
+
+document.getElementById('callSearch').addEventListener('input', () => applySearch('callSearch', callRowsData, callCols, 'callTable', undefined, undefined, 0));
+document.getElementById('doneSearch').addEventListener('input', () => applySearch('doneSearch', doneRowsData, doneCols, 'doneTable', undefined, undefined, 0));
+document.getElementById('allSearch').addEventListener('input', () => applySearch('allSearch', allRowsData, allCols, 'allTable', allTagCols, allRowClassCol, 0));
+document.getElementById('successSearch').addEventListener('input', () => applySearch('successSearch', successRowsData, successCols, 'successTable', undefined, undefined, 0));
+
+function scrollToCard(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+document.getElementById('statCardTotal').addEventListener('click', () => scrollToCard('allCard'));
+document.getElementById('statCardCall').addEventListener('click', () => scrollToCard('callCard'));
+document.getElementById('statCardDone').addEventListener('click', () => scrollToCard('doneCard'));
+document.getElementById('statCardSuccess').addEventListener('click', () => scrollToCard('successCard'));
+document.getElementById('statCardRate').addEventListener('click', () => scrollToCard('successCard'));
+
+function buildPaidIndex(records) {
+  const idx = {};
+  if (!records) return idx;
+  records
+    // 결제금액 0원인 건(예: 신용등급 즉시조회 무료 상품)은 실제 재발급 결제가 아니라서 제외
+    .filter(o => (o['주문 상태'] || '') === '주문완료' && (o['결제 상태'] || '') === '결제완료' &&
+      Number(String(o['결제/주문 금액'] || '0').replace(/[^\d.-]/g, '')) > 0)
+    .forEach(o => {
+      const key = String(o['사업자번호'] || '').trim();
+      if (!key) return;
+      (idx[key] = idx[key] || []).push(o);
+    });
+  return idx;
+}
+
+document.getElementById('matchBtn').addEventListener('click', () => {
+  if (!tmRecords) { setStatus('TM 대상자 명단을 아직 불러오는 중이에요. 잠시 후 다시 눌러주세요.', 'err'); return; }
+  if (!orderRecordsPM && !orderRecordsAM) { setStatus('주문내역 파일을 1차·2차 중 최소 하나는 첨부해주세요.', 'err'); return; }
+
+  const selectedDate = document.getElementById('dateInput').value;
+  const todays = tmRecords.filter(r => extractISODate(r['TM진행일자']) === selectedDate);
+
+  const successLabelText = formatMDDay(selectedDate) + ' 성공 건';
+  document.getElementById('statSuccessLabel').textContent = successLabelText;
+  document.getElementById('successSectionLabel').textContent = successLabelText;
+
+  // 현재 상태는 2차 파일이 있으면 2차(더 최신) 기준, 없으면 1차만으로 판단.
+  // "성공 건" 비교는 1차·2차가 둘 다 있을 때만 의미가 있어서 그때만 켠다.
+  const primaryRecords = orderRecordsPM || orderRecordsAM;
+  const primaryLabel = orderRecordsPM ? '2차' : '1차';
+  const compareMode = !!(orderRecordsAM && orderRecordsPM);
+  const pmIndex = buildPaidIndex(primaryRecords);
+  const amIndex = compareMode ? buildPaidIndex(orderRecordsAM) : null;
+
+  // Show 1차/2차 status side by side in the "전체" list whenever a 1차 file
+  // is attached, so mismatches (e.g. a business that looks issued in one file
+  // but not the other) are visible at a glance instead of hidden inside the
+  // success-count math.
+  allCols = amIndex
+    ? ['시트', '사업자번호', '상호명', '대표자명', '연락처', '상품명', '1차', '2차']
+    : ['시트', '사업자번호', '상호명', '대표자명', '연락처', '상품명', '상태'];
+  allTagCols = amIndex ? [6, 7] : [6];
+  allRowClassCol = amIndex ? 7 : 6;
+
+  doneRowsData = [];
+  callRowsData = [];
+  allRowsData = [];
+  successRowsData = [];
+
+  const debugRows = [];
+
+  todays.forEach(r => {
+    const key = String(r['사업자번호'] || '').trim();
+    const pmHits = pmIndex[key];
+    const issuedPM = !!(pmHits && pmHits.length);
+    const issuedAM = amIndex ? !!(amIndex[key] && amIndex[key].length) : null;
+
+    debugRows.push({ 사업자번호: key, 상호명: r['상호명'], '1차발급': issuedAM, '2차발급': issuedPM });
+
+    if (issuedPM) {
+      pmHits.forEach(o => {
+        doneRowsData.push([
+          r['_시트'] || '', formatBizNo(r['사업자번호']), r['상호명'], r['대표자명'],
+          o['상품명'] || r['상품명'], o['결제/주문 금액'] || '',
+          formatDateTime(o['주문일시'] || '')
+        ]);
+      });
+      if (amIndex && !issuedAM) {
+        pmHits.forEach(o => {
+          successRowsData.push([
+            r['_시트'] || '', formatBizNo(r['사업자번호']), r['상호명'], r['대표자명'],
+            o['상품명'] || r['상품명'], o['결제/주문 금액'] || '',
+            formatDateTime(o['주문일시'] || '')
+          ]);
+        });
+      }
+    } else {
+      callRowsData.push([
+        r['_시트'] || '', formatBizNo(r['사업자번호']), r['상호명'], r['대표자명'], formatPhone(r['연락처']),
+        r['상품명'], r['만료일']
+      ]);
+    }
+
+    if (amIndex) {
+      allRowsData.push([
+        r['_시트'] || '', formatBizNo(r['사업자번호']), r['상호명'], r['대표자명'], formatPhone(r['연락처']),
+        r['상품명'], issuedAM ? '발급완료' : '미발급', issuedPM ? '발급완료' : '미발급'
+      ]);
+    } else {
+      allRowsData.push([
+        r['_시트'] || '', formatBizNo(r['사업자번호']), r['상호명'], r['대표자명'], formatPhone(r['연락처']),
+        r['상품명'], issuedPM ? '발급완료' : '미발급'
+      ]);
+    }
+  });
+
+  console.log('TM 매칭 상세 (사업자번호 / 1차발급 / 2차발급):', debugRows);
+
+  // 미발급(연락 필요) 대상이 위로 오도록 정렬 — 상태(또는 2차) 컬럼 기준
+  allRowsData.sort((a, b) => (a[allRowClassCol] === b[allRowClassCol] ? 0 : a[allRowClassCol] === '미발급' ? -1 : 1));
+
+  document.getElementById('statTotal').textContent = todays.length;
+  document.getElementById('statDone').textContent = doneRowsData.length;
+  document.getElementById('statCall').textContent = callRowsData.length;
+  document.getElementById('summaryCard').style.display = '';
+  document.getElementById('allCard').style.display = '';
+  document.getElementById('callCard').style.display = '';
+  document.getElementById('doneCard').style.display = '';
+
+  renderTable('allTable', allCols, allRowsData, allTagCols, allRowClassCol, 0);
+  renderTable('callTable', callCols, callRowsData, undefined, undefined, 0);
+  renderTable('doneTable', doneCols, doneRowsData, undefined, undefined, 0);
+
+  let statusMsg = (compareMode ? '' : '(' + primaryLabel + ' 파일 기준) ') +
+    '매칭 완료: ' + todays.length + '건 중 ' + callRowsData.length + '건 미발급, ' + doneRowsData.length + '건 발급완료';
+
+  if (amIndex) {
+    const amMissingCount = debugRows.filter(d => d['1차발급'] === false).length;
+    const successRate = amMissingCount ? Math.round((successRowsData.length / amMissingCount) * 100) : 0;
+
+    document.getElementById('statCardSuccess').style.display = '';
+    document.getElementById('statSuccess').textContent = successRowsData.length;
+    document.getElementById('statCardRate').style.display = '';
+    document.getElementById('statRate').textContent = successRate + '%';
+    document.getElementById('successCard').style.display = '';
+    renderTable('successTable', successCols, successRowsData, undefined, undefined, 0);
+    statusMsg += ' · ' + successLabelText + ' ' + successRowsData.length + '건 (성공률 ' + successRate + '%)';
+  } else {
+    document.getElementById('statCardSuccess').style.display = 'none';
+    document.getElementById('statCardRate').style.display = 'none';
+    document.getElementById('successCard').style.display = 'none';
+  }
+
+  setStatus(statusMsg, 'ok');
+});
+
+loadTM();
+</script>
+</body>
+</html>
