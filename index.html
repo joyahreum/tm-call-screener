@@ -112,6 +112,7 @@
   .stat:hover { box-shadow: 0 2px 10px rgba(16,24,40,.08); transform: translateY(-1px); }
   .stat .n { font-size: 26px; font-weight: 800; line-height: 1.1; }
   .stat .l { font-size: 12px; color: var(--sub); margin-top: 4px; font-weight: 600; }
+  .stat .formula { font-size: 10.5px; color: var(--sub); margin-top: 3px; font-weight: 400; opacity: .75; }
   .stat.call { background: var(--red-light); border-color: #fde0e0; }
   .stat.call .n { color: var(--red); }
   .stat.done { background: var(--green-light); border-color: #d6f5e2; }
@@ -162,7 +163,7 @@
       </div>
       <div>
         <h1>TM 콜 스크리너</h1>
-        <div class="tag">TM 대상자와 발급 여부를 자동으로 매칭해드려요 · 스크리닝 · 성과측정 겸용</div>
+        <div class="tag">TM 대상자와 발급 여부를 자동으로 매칭해드려요. 스크리닝 · 성과측정 겸용</div>
       </div>
     </div>
   </div>
@@ -227,7 +228,7 @@
         <div class="stat call" id="statCardCall"><div class="n" id="statCall">0</div><div class="l">미발급</div></div>
         <div class="stat done" id="statCardDone"><div class="n" id="statDone">0</div><div class="l">발급완료</div></div>
         <div class="stat success" id="statCardSuccess" style="display:none;"><div class="n" id="statSuccess">0</div><div class="l"><i class="ti ti-trophy" aria-hidden="true"></i> <span id="statSuccessLabel">성공 건</span></div></div>
-        <div class="stat rate" id="statCardRate" style="display:none;"><div class="n" id="statRate">0%</div><div class="l">성공률 (1차 미발급 대비)</div></div>
+        <div class="stat rate" id="statCardRate" style="display:none;"><div class="n" id="statRate">0%</div><div class="l">성공률 (1차 미발급 대비)</div><div class="formula">성공 건 ÷ 1차 미발급 인원 × 100</div></div>
       </div>
     </div>
 
