@@ -650,22 +650,35 @@ document.getElementById('statCardDone').addEventListener('click', () => scrollTo
 document.getElementById('statCardSuccess').addEventListener('click', () => scrollToCard('successCard'));
 document.getElementById('statCardRate').addEventListener('click', () => scrollToCard('successCard'));
 
-function buildPaidIndex(records, selectedDate) {
+function buildPaidIndex(records) {
   const idx = {};
   if (!records) return idx;
+  // 결제금액 0원인 건(예: 신용등급 즉시조회 무료 상품)은 실제 재발급 결제가 아니라서 제외.
+  // 날짜로는 여기서 거르지 않는다 — 대상자마다 원래 상품(6개월/12개월 등) 주문일이
+  // 달라서 고정된 기간(예: 최근 90일)으로는 어떤 대상자는 놓치고 어떤 대상자는 옛
+  // 결제 이력을 잘못 잡을 수 있다. 실제로 "재발급됐다"고 볼 수 있는 기준은 이번에
+  // 만료 대상이 된 그 주문(TM 시트의 주문일)보다 나중에 결제했는지이므로, 그 비교는
+  // 대상자별 주문일을 알 때(아래 isAfterOrderDate)만 가능해 매칭 단계에서 따로 한다.
   records
-    // 결제금액 0원인 건(예: 신용등급 즉시조회 무료 상품)은 실제 재발급 결제가 아니라서 제외.
-    // 또한 재발급 대상자는 원래 예전(보통 1년 전)에 결제한 이력이 항상 있어서 그게
-    // "이미 발급됨"으로 잘못 잡히지 않도록, TM 진행일자 당일 결제 건만 인정한다.
     .filter(o => (o['주문 상태'] || '') === '주문완료' && (o['결제 상태'] || '') === '결제완료' &&
-      Number(String(o['결제/주문 금액'] || '0').replace(/[^\d.-]/g, '')) > 0 &&
-      (!selectedDate || String(o['주문일시'] || '').slice(0, 10) === selectedDate))
+      Number(String(o['결제/주문 금액'] || '0').replace(/[^\d.-]/g, '')) > 0)
     .forEach(o => {
       const key = String(o['사업자번호'] || '').trim();
       if (!key) return;
       (idx[key] = idx[key] || []).push(o);
     });
   return idx;
+}
+
+// 주문내역의 결제건(orderDateStr)이 TM 시트에 적힌 원래 주문일(cutoffDateStr)보다
+// 나중인지 확인한다. 이게 진짜 "재발급"인지 가려주는 기준 — 원래 주문일 그 자체(또는
+// 그 이전)의 결제 이력은 지금 만료 대상이 된 옛 결제일 뿐이라 발급으로 치지 않는다.
+function isAfterOrderDate(orderDateStr, cutoffDateStr) {
+  if (!cutoffDateStr) return true;
+  const t = new Date(String(orderDateStr || '').slice(0, 10) + 'T00:00:00').getTime();
+  const c = new Date(String(cutoffDateStr).slice(0, 10) + 'T00:00:00').getTime();
+  if (isNaN(t) || isNaN(c)) return true;
+  return t > c;
 }
 
 document.getElementById('matchBtn').addEventListener('click', () => {
@@ -684,8 +697,8 @@ document.getElementById('matchBtn').addEventListener('click', () => {
   const primaryRecords = orderRecordsPM || orderRecordsAM;
   const primaryLabel = orderRecordsPM ? '2차' : '1차';
   const compareMode = !!(orderRecordsAM && orderRecordsPM);
-  const pmIndex = buildPaidIndex(primaryRecords, selectedDate);
-  const amIndex = compareMode ? buildPaidIndex(orderRecordsAM, selectedDate) : null;
+  const pmIndex = buildPaidIndex(primaryRecords);
+  const amIndex = compareMode ? buildPaidIndex(orderRecordsAM) : null;
 
   // Show 1차/2차 status side by side in the "전체" list whenever a 1차 file
   // is attached, so mismatches (e.g. a business that looks issued in one file
@@ -706,9 +719,9 @@ document.getElementById('matchBtn').addEventListener('click', () => {
 
   todays.forEach(r => {
     const key = String(r['사업자번호'] || '').trim();
-    const pmHits = pmIndex[key];
-    const issuedPM = !!(pmHits && pmHits.length);
-    const issuedAM = amIndex ? !!(amIndex[key] && amIndex[key].length) : null;
+    const pmHits = (pmIndex[key] || []).filter(o => isAfterOrderDate(o['주문일시'], r['주문일']));
+    const issuedPM = pmHits.length > 0;
+    const issuedAM = amIndex ? (amIndex[key] || []).filter(o => isAfterOrderDate(o['주문일시'], r['주문일'])).length > 0 : null;
 
     debugRows.push({ 사업자번호: key, 상호명: r['상호명'], '1차발급': issuedAM, '2차발급': issuedPM });
 
