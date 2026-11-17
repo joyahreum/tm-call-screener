@@ -206,6 +206,10 @@
               <input type="text" id="sheetIdInput" placeholder="https://docs.google.com/spreadsheets/d/....">
             </div>
             <div class="field">
+              <label>스프레드시트 2 URL 또는 ID (선택)</label>
+              <input type="text" id="sheetIdInput2" placeholder="두 번째 시트 주소 — 비워두면 1개만 사용">
+            </div>
+            <div class="field">
               <label>탭 이름 (콤마로 구분)</label>
               <input type="text" id="tabsInput" placeholder="마케팅O,마케팅X,무제한마케팅O,무제한마케팅X">
             </div>
@@ -311,13 +315,15 @@ function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s))
 
 let currentSettings = loadSettings();
 document.getElementById('sheetIdInput').value = currentSettings.sheetId;
+    document.getElementById('sheetIdInput2').value = currentSettings.sheetId2 || '';
 document.getElementById('tabsInput').value = currentSettings.tabs.join(',');
 
 document.getElementById('saveSettingsBtn').addEventListener('click', () => {
   const sheetId = extractSheetId(document.getElementById('sheetIdInput').value);
+      const sheetId2 = extractSheetId(document.getElementById('sheetIdInput2').value);
   const tabs = document.getElementById('tabsInput').value.split(',').map(t => t.trim()).filter(Boolean);
   if (!sheetId || !tabs.length) { setStatus('스프레드시트 주소와 탭 이름을 모두 입력해주세요.', 'err'); return; }
-  currentSettings = { sheetId, tabs };
+  currentSettings = { sheetId, sheetId2, tabs };
   saveSettings(currentSettings);
   loadTM();
 });
@@ -479,14 +485,27 @@ async function loadTM() {
   try {
     const all = [];
     const tabNotes = [];
-    for (const tab of currentSettings.tabs) {
-      const table = await fetchTabJSONP(currentSettings.sheetId, tab);
+    const sheetIds = [currentSettings.sheetId, currentSettings.sheetId2].filter(Boolean);
+        const multi = sheetIds.length > 1;
+        const seen = new Set(); // 이전 시트들의 사업자번호 (시트 간 중복만 제외)
+        let dupCount = 0;
+        for (let si = 0; si < sheetIds.length; si++) {
+        for (const tab of currentSettings.tabs) {
+          const table = await fetchTabJSONP(sheetIds[si], tab);
       const rows = gvizTableToRows(table);
       const recs = gvizRowsToTMRecords(rows);
-      recs.forEach(rec => { rec['_시트'] = tab; });
-      tabNotes.push(tab + ':' + recs.length);
-      all.push(...recs);
-    }
+      const label = multi ? ('시트' + (si + 1) + ' ' + tab) : tab;
+          const uniq = recs.filter(rec => {
+            if (si > 0 && seen.has(rec['사업자번호'])) { dupCount++; return false; }
+            return true;
+          });
+          uniq.forEach(rec => { rec['_시트'] = label; });
+          tabNotes.push(label + ':' + uniq.length);
+          all.push(...uniq);
+        }
+        all.forEach(rec => seen.add(rec['사업자번호']));
+        }
+        if (dupCount) console.log('두 시트 간 중복 사업자번호 제외:', dupCount);
     console.log('TM tabs loaded ->', tabNotes.join(', '));
     tmRecords = all;
     if (!tmRecords.length) {
