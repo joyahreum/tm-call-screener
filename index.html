@@ -151,6 +151,13 @@
   .empty { padding: 26px; text-align: center; color: #9ca3af; font-size: 13px; }
   .tag-consent { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#dcfce7; color:#166534; }
   .tag-disconsent { display:inline-block; font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; background:#fee2e2; color:#991b1b; }
+  .sheet-tabs { display:flex; border-bottom:2px solid #e5e7eb; margin:18px 0 14px; }
+  .sheet-tab { padding:11px 22px; font-size:15px; font-weight:600; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; user-select:none; }
+  .sheet-tab .cnt { font-weight:500; font-size:12px; background:#eef0f3; color:#6b7280; padding:2px 8px; border-radius:10px; margin-left:6px; }
+  .sheet-tab .cnt:empty { display:none; }
+  .sheet-tab.active { color:#2f6fed; border-bottom-color:#2f6fed; }
+  .sheet-tab.active .cnt { background:#e5eeff; color:#2f6fed; }
+  .sheet-tab.all { margin-left:auto; font-weight:500; font-size:13px; }
 </style>
 </head>
 <body>
@@ -202,12 +209,12 @@
         <div class="settings-body">
           <div class="row">
             <div class="field">
-              <label>스프레드시트 URL 또는 ID</label>
+              <label>개인 스프레드시트 URL 또는 ID</label>
               <input type="text" id="sheetIdInput" placeholder="https://docs.google.com/spreadsheets/d/....">
             </div>
             <div class="field">
-              <label>스프레드시트 2 URL 또는 ID (선택)</label>
-              <input type="text" id="sheetIdInput2" placeholder="두 번째 시트 주소 — 비워두면 1개만 사용">
+              <label>법인 스프레드시트 URL 또는 ID (선택)</label>
+              <input type="text" id="sheetIdInput2" placeholder="법인 시트 주소 — 비워두면 개인 시트만 사용">
             </div>
             <div class="field">
               <label>탭 이름 (콤마로 구분)</label>
@@ -224,6 +231,11 @@
           </div>
         </div>
       </details>
+        <div class="sheet-tabs" id="sheetTabs" style="display:none">
+          <div class="sheet-tab active" data-s="개인">개인<span class="cnt" id="cnt개인"></span></div>
+          <div class="sheet-tab" data-s="법인">법인<span class="cnt" id="cnt법인"></span></div>
+          <div class="sheet-tab all" data-s="all">전체 보기<span class="cnt" id="cntall"></span></div>
+        </div>
     </div>
 
     <div class="card" id="summaryCard" style="display:none;">
@@ -272,7 +284,7 @@
 
 <script>
 const DEFAULT_SHEET_ID = '1ChYQRAokNC9xnCug2OaPfB_PTXRnCT5gURrbclv4jcs';
-const DEFAULT_TABS = ['마케팅O', '마케팅X', '무제한마케팅O', '무제한마케팅X'];
+const DEFAULT_TABS = ['마케팅O', '마케팅X', '무제한O', '무제한X'];
 const SETTINGS_KEY = 'call_radar_settings_v1';
 
 let tmRecords = null;
@@ -313,7 +325,12 @@ function loadSettings() {
 }
 function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
 
-let currentSettings = loadSettings();
+const SHEET_NAMES = ['개인', '법인'];
+    let multiSheet = false;
+    let sheetFilter = '개인';
+    let hasMatched = false;
+    let skippedTabs = [];
+    let currentSettings = loadSettings();
 document.getElementById('sheetIdInput').value = currentSettings.sheetId;
     document.getElementById('sheetIdInput2').value = currentSettings.sheetId2 || '';
 document.getElementById('tabsInput').value = currentSettings.tabs.join(',');
@@ -487,6 +504,9 @@ async function loadTM() {
     const tabNotes = [];
     const sheetIds = [currentSettings.sheetId, currentSettings.sheetId2].filter(Boolean);
         const multi = sheetIds.length > 1;
+        multiSheet = multi;
+        const tabSigs = new Set();
+        skippedTabs = [];
         const seen = new Set(); // 이전 시트들의 사업자번호 (시트 간 중복만 제외)
         let dupCount = 0;
         for (let si = 0; si < sheetIds.length; si++) {
@@ -494,7 +514,14 @@ async function loadTM() {
           const table = await fetchTabJSONP(sheetIds[si], tab);
       const rows = gvizTableToRows(table);
       const recs = gvizRowsToTMRecords(rows);
-      const label = multi ? ('시트' + (si + 1) + ' ' + tab) : tab;
+          const sig = si + '|' + recs.map(x => x['사업자번호']).join(',');
+          if (recs.length && tabSigs.has(sig)) {
+            skippedTabs.push((multi ? SHEET_NAMES[si] + ' ' : '') + tab);
+            continue;
+          }
+          tabSigs.add(sig);
+      const label = multi ? (SHEET_NAMES[si] + ' ' + tab) : tab;
+          recs.forEach(rec => { rec['_구분'] = SHEET_NAMES[si]; });
           const uniq = recs.filter(rec => {
             if (si > 0 && seen.has(rec['사업자번호'])) { dupCount++; return false; }
             return true;
@@ -512,7 +539,7 @@ async function loadTM() {
       setStatus('시트는 불러왔지만 대상자가 0건이에요 (' + tabNotes.join(', ') + '). 탭 이름/컬럼 구조를 확인해주세요.', 'err');
       return;
     }
-    setStatus('TM 대상자 ' + tmRecords.length + '건 불러왔어요. 주문내역 파일을 첨부하고 매칭하기를 눌러주세요.', 'ok');
+    setStatus('TM 대상자 ' + tmRecords.length + '건 불러왔어요. 주문내역 파일을 첨부하고 매칭하기를 눌러주세요.' + (skippedTabs.length ? '<br>⚠ 시트에 없는 탭이라 건너뛰었어요: ' + skippedTabs.join(', ') + ' (탭 이름을 확인해주세요)' : ''), 'ok');
   } catch (err) {
     console.error('loadTM failed', err);
     setStatus('구글 시트를 불러오지 못했어요 (' + (err && err.message ? err.message : '') + '). 시트 공유 설정과 탭 이름을 확인해주세요.', 'err');
@@ -705,7 +732,19 @@ document.getElementById('matchBtn').addEventListener('click', () => {
   if (!orderRecordsPM && !orderRecordsAM) { setStatus('주문내역 파일을 1차·2차 중 최소 하나는 첨부해주세요.', 'err'); return; }
 
   const selectedDate = document.getElementById('dateInput').value;
-  const todays = tmRecords.filter(r => extractISODate(r['TM진행일자']) === selectedDate);
+  const seenToday = new Set();
+      const todaysAll = tmRecords.filter(r => extractISODate(r['TM진행일자']) === selectedDate).filter(r => {
+        const k = (r['_구분'] || '') + '|' + r['사업자번호'];
+        if (seenToday.has(k)) return false;
+        seenToday.add(k); return true;
+      });
+      document.getElementById('sheetTabs').style.display = multiSheet ? 'flex' : 'none';
+      if (multiSheet) {
+        SHEET_NAMES.forEach(n => { document.getElementById('cnt' + n).textContent = todaysAll.filter(r => r['_구분'] === n).length + '건'; });
+        document.getElementById('cntall').textContent = todaysAll.length + '건';
+      }
+      const todays = (!multiSheet || sheetFilter === 'all') ? todaysAll : todaysAll.filter(r => r['_구분'] === sheetFilter);
+      hasMatched = true;
 
   const successLabelText = formatMDDay(selectedDate) + ' 성공 건';
   document.getElementById('statSuccessLabel').textContent = successLabelText;
@@ -821,7 +860,13 @@ document.getElementById('matchBtn').addEventListener('click', () => {
   setStatus(statusMsg, 'ok');
 });
 
-loadTM();
+document.querySelectorAll('#sheetTabs .sheet-tab').forEach(t => t.addEventListener('click', () => {
+      sheetFilter = t.dataset.s;
+      document.querySelectorAll('#sheetTabs .sheet-tab').forEach(x => x.classList.toggle('active', x === t));
+      if (hasMatched) document.getElementById('matchBtn').click();
+    }));
+
+    loadTM();
 </script>
 </body>
 </html>
